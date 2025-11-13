@@ -1,0 +1,12 @@
+# Environment variables
+.env
+# output images
+intrusion_images
+# Python cache
+__pycache__/
+*.pyc
+# Temp / generated files
+alert.png
+# Model weights (downloaded by ultralytics)
+yolov8n.pt
+ 
