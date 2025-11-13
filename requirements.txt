@@ -1,0 +1,7 @@
+opencv-python
+numpy
+imutils
+python-telegram-bot
+shapely
+python-dotenv
+ultralytics
