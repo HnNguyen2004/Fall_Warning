@@ -52,9 +52,3 @@ Mở file `telegram_ultil.py` để cấu hình `BOT_TOKEN` và `CHAT_ID` hoặc
 - Đảm bảo `yolov8n.pt` tồn tại trong thư mục dự án.
 - Kiểm tra quyền truy cập camera nếu dùng camera thật.
 - Việc phát hiện chính xác phụ thuộc vào mô hình và dữ liệu huấn luyện; cần tinh chỉnh nếu cần.
-
-## Liên hệ
-Nếu cần hỗ trợ thêm, mở issue hoặc liên hệ với tác giả repository.
-
----
-README này ngắn gọn để nhanh bắt đầu. Nếu bạn muốn, tôi có thể mở rộng thành hướng dẫn chi tiết (ví dụ: cách cấu hình Telegram cụ thể, cách dùng camera/video sample, hoặc bổ sung ví dụ cấu hình môi trường).
