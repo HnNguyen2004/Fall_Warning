@@ -2,7 +2,7 @@ from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
 import cv2
 import numpy as np
-from telegram_ultil import send_telegram
+from teleConnect.telegram_ultil import send_telegram
 import datetime
 import threading
 from ultralytics import YOLO
@@ -18,7 +18,7 @@ def isInside(points, centroid):
 class YoloDetect():
     def __init__(self, detect_class="person", frame_width=1280, frame_height=720):
         # Parameters
-        self.model_path = "yolov8n.pt"  # YOLOv8 nano model, bạn có thể thay bằng yolov8s.pt, yolov8m.pt, yolov8l.pt, yolov8x.pt
+        self.model_path = "best.pt"  # Trained model cho fall detection (Fall/No-Fall)
         self.conf_threshold = 0.5
         self.detect_class = detect_class
         self.frame_width = frame_width

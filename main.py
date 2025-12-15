@@ -61,7 +61,7 @@ class IntrusionDetectionSystem:
         return frame
 
     def save_intrusion_image(self, frame, person_name="Unknown"):
-        """Lưu ảnh người xâm nhập"""
+        """Lưu ảnh người té ngã"""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"intrusion_{person_name}_{timestamp}.jpg"
         
@@ -73,7 +73,7 @@ class IntrusionDetectionSystem:
         return image_path
 
     def on_intrusion_detected(self, frame, person_name="Person_Detected", confidence=0.8):
-        """Callback được gọi khi YoloDetect phát hiện xâm nhập"""
+        """Callback được gọi khi YoloDetect phát hiện té ngã"""
         current_time = datetime.now().timestamp()
         
         # Kiểm tra cooldown để tránh spam
