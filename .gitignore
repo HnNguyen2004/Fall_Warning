@@ -10,5 +10,5 @@ alert.png
 # Model weights (downloaded by ultralytics)
 yolov8n.pt
 inference_output
-
- 
+key/
+*.json
