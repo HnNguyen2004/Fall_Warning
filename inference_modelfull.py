@@ -36,6 +36,10 @@ from teleConnect.telegram_ultil import send_telegram
 
 import cv2
 import numpy as np
+import requests
+from dotenv import load_dotenv
+from google.oauth2 import service_account
+from google.auth.transport.requests import Request as GoogleAuthRequest
 
 # ============== DEFAULT CONFIG ==============
 DEFAULT_MODEL = "best.pt"
@@ -341,7 +345,7 @@ def process_video(model, video_path, args, output_dir=None, db_conn=None, alert_
         source = int(video_path)
         cap = cv2.VideoCapture(source)
         is_webcam = True
-        print(f"📹 Opening webcam {source}...")
+        print(f" Opening webcam {source}...")
     else:
         # Video file
         cap = cv2.VideoCapture(str(video_path))
@@ -349,7 +353,7 @@ def process_video(model, video_path, args, output_dir=None, db_conn=None, alert_
         print(f"🎬 Processing video: {video_path}")
     
     if not cap.isOpened():
-        print(f"❌ Cannot open video source: {video_path}")
+        print(f" Cannot open video source: {video_path}")
         return
     
     # Get video properties
@@ -375,7 +379,7 @@ def process_video(model, video_path, args, output_dir=None, db_conn=None, alert_
     fps_history = []
     last_alert_ts = 0
     
-    print("\n🚀 Starting inference... (Press 'q' to quit)")
+    print("\n Starting inference... (Press 'q' to quit)")
     print("-" * 50)
     
     try:
@@ -450,7 +454,7 @@ def process_video(model, video_path, args, output_dir=None, db_conn=None, alert_
                     try:
                         asyncio.run(send_telegram(str(screenshot_path)))
                     except Exception as ex:
-                        print(f"⚠️ Lỗi gửi Telegram: {ex}")
+                        print(f"Lỗi gửi Telegram: {ex}")
                     # Log to DB
                     try:
                         if db_conn is not None:
@@ -465,7 +469,12 @@ def process_video(model, video_path, args, output_dir=None, db_conn=None, alert_
                             db_conn.commit()
                             cur.close()
                     except Exception as ex:
-                        print(f"⚠️ Lỗi ghi DB: {ex}")
+                        print(f"Lỗi ghi DB: {ex}")
+                    # FCM notify
+                    try:
+                        send_fcm_fall_alert(0, max(fall_scores) if fall_scores else 0, str(screenshot_path))
+                    except Exception as ex:
+                        print(f"Lỗi gửi FCM: {ex}")
             
             # Save frame
             if video_writer:
@@ -476,7 +485,7 @@ def process_video(model, video_path, args, output_dir=None, db_conn=None, alert_
                 cv2.imshow("Fall Detection", annotated_frame)
                 key = cv2.waitKey(1) & 0xFF
                 if key == ord('q'):
-                    print("\n⏹️ Stopped by user")
+                    print("\n Stopped by user")
                     break
                 elif key == ord('s'):
                     # Save screenshot
@@ -485,7 +494,7 @@ def process_video(model, video_path, args, output_dir=None, db_conn=None, alert_
                     print(f"   📸 Screenshot saved: {screenshot_path}")
     
     except KeyboardInterrupt:
-        print("\n⏹️ Interrupted by user")
+        print("\n Interrupted by user")
     
     finally:
         cap.release()
@@ -495,8 +504,70 @@ def process_video(model, video_path, args, output_dir=None, db_conn=None, alert_
     
     # Print summary
     print("-" * 50)
-    print(f"✅ Processed {frame_count} frames")
+    print(f" Processed {frame_count} frames")
     print(f"   Average FPS: {np.mean(fps_history):.1f}")
+
+
+def send_fcm_fall_alert(event_id: int, confidence: float, image_path: str):
+    """Gửi push notification qua Firebase Cloud Messaging HTTP v1 (không dùng Legacy).
+
+    Yêu cầu biến môi trường:
+      - FIREBASE_PROJECT_ID: ID dự án Firebase (VD: my-project-id)
+      - FCM_SERVICE_ACCOUNT_FILE hoặc GOOGLE_APPLICATION_CREDENTIALS: đường dẫn file service account JSON
+      - FCM_TOPIC (tùy chọn, mặc định 'fall_alerts')
+    """
+    try:
+        project_id = os.getenv("FIREBASE_PROJECT_ID")
+        sa_file = os.getenv("FCM_SERVICE_ACCOUNT_FILE") or os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+        topic = os.getenv("FCM_TOPIC", "fall_alerts")
+        if not project_id:
+            print("⚠️ Thiếu FIREBASE_PROJECT_ID trong .env — bỏ qua gửi FCM")
+            return False
+        if not sa_file or not os.path.exists(sa_file):
+            print("⚠️ Thiếu hoặc sai đường dẫn service account JSON (FCM_SERVICE_ACCOUNT_FILE/GOOGLE_APPLICATION_CREDENTIALS)")
+            return False
+
+        scopes = ["https://www.googleapis.com/auth/firebase.messaging"]
+        credentials = service_account.Credentials.from_service_account_file(sa_file, scopes=scopes)
+        credentials.refresh(GoogleAuthRequest())
+        access_token = credentials.token
+        if not access_token:
+            print("⚠️ Không lấy được access token FCM v1")
+            return False
+
+        url = f"https://fcm.googleapis.com/v1/projects/{project_id}/messages:send"
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        }
+        title = "Cảnh báo té ngã"
+        body = f"Phát hiện FALL (conf={confidence:.2f})"
+        payload = {
+            "message": {
+                "topic": topic,
+                "notification": {
+                    "title": title,
+                    "body": body,
+                },
+                "data": {
+                    "event_id": str(event_id),
+                    "event_type": "fall",
+                    "confidence": f"{confidence:.4f}",
+                    "image_path": image_path,
+                    "timestamp": datetime.now().isoformat(),
+                },
+            }
+        }
+        resp = requests.post(url, headers=headers, json=payload, timeout=10)
+        if 200 <= resp.status_code < 300:
+            print("📲 Đã gửi push FCM (HTTP v1) thành công")
+            return True
+        else:
+            print(f"⚠️ Gửi FCM v1 thất bại: {resp.status_code} - {resp.text}")
+            return False
+    except Exception as ex:
+        print(f"⚠️ Lỗi gửi FCM v1: {ex}")
+        return False
 
 
 def main():
@@ -504,30 +575,30 @@ def main():
     args = parse_args()
     
     print("=" * 60)
-    print("🔍 YOLOv11 Fall Detection - Inference")
+    print(" YOLOv11 Fall Detection - Inference")
     print("=" * 60)
     
     # Check model exists
     expanded_model = os.path.expanduser(args.model)
     if not Path(expanded_model).exists():
-        print(f"❌ Model not found: {expanded_model}")
+        print(f" Model not found: {expanded_model}")
         sys.exit(1)
     
     # Load model
-    print(f"\n📦 Loading model: {expanded_model}")
+    print(f"\n Loading model: {expanded_model}")
     from ultralytics import YOLO
     model = YOLO(expanded_model)
-    print("   ✅ Model loaded successfully")
+    print("    Model loaded successfully")
     
     # Create output directory
     output_dir = None
     if args.save:
         output_dir = Path(args.output)
         output_dir.mkdir(parents=True, exist_ok=True)
-        print(f"   📁 Output directory: {output_dir}")
+        print(f"    Output directory: {output_dir}")
     
     # Print config
-    print(f"\n⚙️ Configuration:")
+    print(f"\n Configuration:")
     print(f"   Confidence: {args.conf}")
     print(f"   IoU: {args.iou}")
     print(f"   Image size: {args.imgsz}")
@@ -559,17 +630,17 @@ def main():
             # Video file
             process_video(model, source, args, output_dir)
         else:
-            print(f"❌ Unsupported file type: {source}")
+            print(f" Unsupported file type: {source}")
     
     elif Path(source).is_dir():
         # Folder of images
-        print(f"📁 Processing folder: {source}")
+        print(f" Processing folder: {source}")
         image_files = []
         for ext in ['*.jpg', '*.jpeg', '*.png', '*.bmp']:
             image_files.extend(Path(source).glob(ext))
         
         if not image_files:
-            print("❌ No images found in folder")
+            print(" No images found in folder")
             sys.exit(1)
         
         print(f"   Found {len(image_files)} images")
@@ -577,17 +648,18 @@ def main():
         for img_path in image_files:
             process_image(model, img_path, args, output_dir)
         
-        print(f"\n✅ Processed {len(image_files)} images")
+        print(f"\n Processed {len(image_files)} images")
     
     else:
-        print(f"❌ Source not found: {source}")
+        print(f" Source not found: {source}")
         sys.exit(1)
     
     if args.show:
         cv2.destroyAllWindows()
     
-    print("\n✅ Done!")
+    print("\n Done!")
 
 
 if __name__ == "__main__":
+    load_dotenv()
     main()

@@ -299,7 +299,7 @@ def process_video(model, video_path, args, output_dir=None):
         source = int(video_path)
         cap = cv2.VideoCapture(source)
         is_webcam = True
-        print(f"📹 Opening webcam {source}...")
+        print(f" Opening webcam {source}...")
     else:
         # Video file
         cap = cv2.VideoCapture(str(video_path))
@@ -332,7 +332,7 @@ def process_video(model, video_path, args, output_dir=None):
     frame_count = 0
     fps_history = []
     
-    print("\n🚀 Starting inference... (Press 'q' to quit)")
+    print("\n Starting inference... (Press 'q' to quit)")
     print("-" * 50)
     
     try:
@@ -429,7 +429,7 @@ def main():
     args = parse_args()
     
     print("=" * 60)
-    print("🔍 YOLOv11 Fall Detection - Inference")
+    print(" YOLOv11 Fall Detection - Inference")
     print("=" * 60)
     
     # Check model exists
