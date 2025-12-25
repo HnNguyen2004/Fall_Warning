@@ -1,47 +1,38 @@
+import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:flutter/material.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
 
-/// Background handler (Android) khi app ở background/killed.
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
-  // Bạn có thể xử lý dữ liệu tại đây nếu cần.
 }
 
 class NotificationService {
+  /// INIT – chỉ làm setup, KHÔNG subscribe topic
   static Future<void> init() async {
-    // Khởi tạo local notifications
-    const AndroidInitializationSettings androidInit =
+    const androidInit =
         AndroidInitializationSettings('@mipmap/ic_launcher');
-    const DarwinInitializationSettings iosInit = DarwinInitializationSettings();
+    const iosInit = DarwinInitializationSettings();
 
-    const InitializationSettings initSettings = InitializationSettings(
+    const initSettings = InitializationSettings(
       android: androidInit,
       iOS: iosInit,
     );
 
     await flutterLocalNotificationsPlugin.initialize(initSettings);
 
-    // Đăng ký background handler
-    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-
-    // Yêu cầu quyền iOS
+    // Xin quyền iOS
     await FirebaseMessaging.instance.requestPermission(
       alert: true,
-      announcement: false,
       badge: true,
-      carPlay: false,
-      criticalAlert: false,
-      provisional: false,
       sound: true,
     );
 
-    // Foreground notifications trên Android 13+
+    // iOS foreground notification
     await FirebaseMessaging.instance
         .setForegroundNotificationPresentationOptions(
       alert: true,
@@ -50,21 +41,52 @@ class NotificationService {
     );
   }
 
+  /// Foreground listener
+  static void listenForegroundMessages() {
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      final notification = message.notification;
+      showLocalNotification(
+        notification?.title ?? 'Fall Warning',
+        notification?.body ?? 'Có cảnh báo té ngã mới',
+      );
+    });
+  }
+
+  /// ✅ SUBSCRIBE CHUẨN – chờ APNS token
+  static Future<void> subscribeFallAlertsTopic() async {
+    if (Platform.isIOS) {
+      String? apnsToken;
+
+      // Chờ tối đa ~10s cho APNS token
+      for (int i = 0; i < 5; i++) {
+        apnsToken = await FirebaseMessaging.instance.getAPNSToken();
+        if (apnsToken != null) break;
+        await Future.delayed(const Duration(seconds: 2));
+      }
+
+      if (apnsToken == null) {
+        print('❌ APNS token chưa sẵn sàng – skip subscribe');
+        return;
+      }
+    }
+
+    await FirebaseMessaging.instance.subscribeToTopic('fall_alerts');
+    print('✅ Subscribed to fall_alerts');
+  }
+
   static Future<void> showLocalNotification(
-    String title,
-    String body,
-  ) async {
-    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      String title, String body) async {
+    const androidDetails = AndroidNotificationDetails(
       'fall_alerts_channel',
       'Fall Alerts',
-      channelDescription: 'Thông báo khi phát hiện té ngã',
+      channelDescription: 'Thông báo té ngã',
       importance: Importance.max,
       priority: Priority.high,
-      playSound: true,
     );
-    const DarwinNotificationDetails iosDetails = DarwinNotificationDetails();
 
-    const NotificationDetails platformDetails = NotificationDetails(
+    const iosDetails = DarwinNotificationDetails();
+
+    const details = NotificationDetails(
       android: androidDetails,
       iOS: iosDetails,
     );
@@ -73,22 +95,7 @@ class NotificationService {
       DateTime.now().millisecondsSinceEpoch ~/ 1000,
       title,
       body,
-      platformDetails,
+      details,
     );
-  }
-
-  /// Gọi hàm này để lắng nghe message khi app đang mở (foreground)
-  static void listenForegroundMessages() {
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      final notification = message.notification;
-      final title = notification?.title ?? 'Fall Warning';
-      final body = notification?.body ?? 'Có cảnh báo té ngã mới';
-      showLocalNotification(title, body);
-    });
-  }
-
-  /// Helper subscribe topic từ app
-  static Future<void> subscribeFallAlertsTopic() async {
-    await FirebaseMessaging.instance.subscribeToTopic('fall_alerts');
   }
 }
