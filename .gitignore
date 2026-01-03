@@ -12,3 +12,4 @@ yolov8n.pt
 inference_output
 key_secret/
 *.json
+ios/Runner/GoogleService-Info.plist
