@@ -9,7 +9,10 @@ __pycache__/
 alert.png
 # Model weights (downloaded by ultralytics)
 yolov8n.pt
-inference_output
+inference_output/
+testdemo/
 key_secret/
 *.json
 ios/Runner/GoogleService-Info.plist
+BAO_CAO_DU_AN.md
+mau-dang-ki-nckh-fall-warning.docx
