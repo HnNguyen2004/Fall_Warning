@@ -434,7 +434,7 @@ def process_video(model, video_path, args, output_dir=None, db_conn=None, alert_
             if fall_count > 0:
                 # Draw alert
                 cv2.putText(
-                    annotated_frame, "⚠️ FALL DETECTED!",
+                    annotated_frame, "!!! FALL DETECTED!",
                     (width // 2 - 150, 50),
                     cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 3, cv2.LINE_AA
                 )
