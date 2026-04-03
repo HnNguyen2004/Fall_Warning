@@ -1,54 +1,78 @@
-                                                                                                                                                               # Fall_Warning
+# Fall_Warning
 
-Một project đơn giản phát hiện té ngã (fall detection) sử dụng mô hình YOLOv8 và gửi cảnh báo qua Telegram.
+Hệ thống phát hiện té ngã (Fall Detection) sử dụng YOLOv11 với smart filtering, gửi cảnh báo qua Telegram / Firebase FCM và lưu lịch sử vào PostgreSQL.
 
 ## Mô tả
-Ứng dụng này chạy mô hình phát hiện (một file mô hình `yolov8n.pt` có sẵn trong repo) để phát hiện tình huống té ngã từ nguồn video/camera. Khi phát hiện sự kiện quan trọng, project có thể gửi thông báo qua Telegram (cấu hình token/chat id trong `telegram_ultil.py`).
 
-## Yêu cầu
-- Python 3.8+ (đã thử trên Windows)
-- Các phụ thuộc có trong `requirements.txt` (cài bằng pip)
+Ứng dụng chạy mô hình YOLOv11 (`best.pt`) để phát hiện tình huống té ngã từ nguồn video/camera. Hệ thống bao gồm:
+- **Smart Filtering**: Aspect Ratio, Temporal, Box Area, Smart NMS để giảm false positive
+- **Đa kênh thông báo**: Telegram Bot, Firebase FCM, PostgreSQL logging
+- **Đa nguồn input**: Webcam, video file, ảnh đơn, folder ảnh, RTSP stream
+- **Mobile App**: Flutter app hiển thị lịch sử sự kiện
 
 ## Cấu trúc chính
-- `main.py` — entrypoint của ứng dụng
-- `yolodetect.py` — logic liên quan đến việc dùng YOLO để phát hiện
-- `telegram_ultil.py` — hàm/giao tiếp để gửi tin nhắn qua Telegram
-- `yolov8n.pt` — file mô hình YOLOv8 (đã có trong repo)
-- `requirements.txt` — danh sách package cần cài
+- `inference.py` — file inference duy nhất, tích hợp toàn bộ tính năng
+- `server/api_server.py` — FastAPI backend server
+- `teleConnect/telegram_ultil.py` — gửi tin nhắn Telegram
+- `train/train_full_dataset.py` — script training model
+- `fall_warning_mobileapp/` — Flutter mobile app
+- `best.pt` — model YOLOv11 đã train
+- `.env` — cấu hình credentials (Telegram, DB, Firebase)
 
-## Cài đặt (Windows, PowerShell)
-1. Tạo và kích hoạt virt        ual environment:
+## Cài đặt
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-```
-
-2. Cài đặt phụ thuộc:
-
-```powershell
 pip install -r requirements.txt
 ```
 
-Ghi chú: nếu không thể chạy `Activate.ps1` do policy, bạn có thể chạy trực tiếp Python trong venv:
-
-```powershell
-.\.venv\Scripts\python.exe main.py
-```
-
 ## Cách chạy
-Sau khi cài đặt, chạy:
 
 ```powershell
-python main.py
+# Webcam realtime
+python inference.py --source 0 --show
+
+# Video file + lưu kết quả
+python inference.py --source testdemo/test.mp4 --show --save
+
+# Ảnh đơn
+python inference.py --source image.jpg --show --save
+
+# Folder ảnh
+python inference.py --source images/ --save
+
+# Tuỳ chỉnh filtering
+python inference.py --source 0 --show --min-aspect-ratio 1.5 --confirm-frames 8
+
+# Tắt thông báo
+python inference.py --source 0 --show --no-telegram --no-fcm --no-db
 ```
 
-Hoặc dùng Python trong venv như ghi ở trên.
+Kết quả output mặc định vào thư mục `result/`.
 
-## Cấu hình Telegram
-Mở file `telegram_ultil.py` để cấu hình `BOT_TOKEN` và `CHAT_ID` hoặc cấu hình dưới dạng biến môi trường (tùy cách implement trong file). Kiểm tra file này để biết nơi cần đặt token/chat id.
+## Cấu hình
+
+Tạo file `.env` tại thư mục gốc với nội dung:
+
+```env
+# Telegram
+TELEGRAM_BOT_TOKEN=your_token
+TELEGRAM_CHAT_ID=your_chat_id
+
+# PostgreSQL
+DB_HOST=localhost
+DB_NAME=warning_data
+DB_USER=your_user
+DB_PASSWORD=your_password
+DB_PORT=5432
+
+# Firebase (optional)
+FIREBASE_PROJECT_ID=your-project-id
+FCM_SERVICE_ACCOUNT_FILE=path/to/service-account.json
+```
 
 ## Lưu ý
-- Đảm bảo `yolov8n.pt` tồn tại trong thư mục dự án.
-- Kiểm tra quyền truy cập camera nếu dùng camera thật.
-- Việc phát hiện chính xác phụ thuộc vào mô hình và dữ liệu huấn luyện; cần tinh chỉnh nếu cần.
+- Đảm bảo `best.pt` tồn tại trong thư mục dự án
+- Kiểm tra quyền truy cập camera nếu dùng webcam
+- Smart filtering giúp giảm false positive: aspect ratio, temporal confirmation, NMS
